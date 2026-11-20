@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Навигатор — активация почты (служебная страница)</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="cover">
+  <div class="cover__inner">
+    <div class="cover__title"><a href="index.html">Навигатор</a></div>
+    <p class="cover__subtitle">Служебная страница — активация почты</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <article class="content">
+
+    <h1>Активация почты для формы «Мой ответ»</h1>
+
+    <p>Эта страница нужна <b>один раз</b>. Она отправляет на сервис FormSubmit обычную (не фоновую)
+    заявку — после этого сервис присылает на адрес <b>ilyamironu@mail.ru</b> письмо с кнопкой
+    подтверждения. Пока письмо не подтверждено, формы на сайте будут отвечать
+    «Сервис отправки недоступен»: это и есть незавершённая активация.</p>
+
+    <h3>Шаг 1. Нажмите кнопку ниже</h3>
+
+    <form class="activate-form" action="https://formsubmit.co/ilyamironu@mail.ru" method="POST">
+      <input type="text" name="_honey" style="display:none" tabindex="-1" autocomplete="off">
+      <input type="hidden" name="_subject" value="Навигатор — заявка на активацию формы">
+      <input type="hidden" name="_template" value="table">
+
+      <label for="af-name">От кого (необязательно)</label>
+      <input type="text" id="af-name" name="name" placeholder="Например: владелец сайта «Навигатор»">
+
+      <label for="af-msg">Сообщение (можно не менять)</label>
+      <textarea id="af-msg" name="message">Активация формы «Мой ответ» на сайте «Навигатор».</textarea>
+
+      <div class="row">
+        <button type="submit" class="btn">Отправить заявку на активацию</button>
+      </div>
+    </form>
+
+    <p class="hint">Если появится проверка «Я не робот» — пройдите её. После отправки откроется
+    страница сервиса FormSubmit — это нормально, ничего больше делать не нужно.</p>
+
+    <h3>Шаг 2. Подтвердите письмо</h3>
+
+    <p>Откройте почту <b>ilyamironu@mail.ru</b> (обязательно проверьте папку «Спам»).
+    Придёт письмо от FormSubmit с кнопкой <b>Activate Form</b> — нажмите её и увидите сообщение
+    об успешной активации.</p>
+
+    <h3>Шаг 3. Проверьте тихую (фоновую) отправку</h3>
+
+    <p>Нажмите кнопку ниже — она делает ровно такой же фоновый запрос, как формы на сайте,
+    и показывает ответ сервиса. Если в ответе есть <code>"success":"true"</code> — всё работает
+    и страницы сайта снова отправляют ответы незаметно, без перезагрузки.</p>
+
+    <p class="btn--block"><button type="button" class="btn" id="testAjax">Проверить тихую отправку</button></p>
+
+    <pre id="testOut" class="test-out">Ответ сервиса появится здесь.</pre>
+
+    <h3>Шаг 4. Что дальше</h3>
+
+    <p>После успешной проверки файл <code>activate.html</code> можно удалить — на работу сайта он
+    не влияет и из меню он не доступен. Если позже поменяете почту в <code>js/config.js</code>,
+    активацию нужно будет пройти заново для нового адреса.</p>
+
+    <p class="pager"><a href="index.html">⬅️ на главную</a></p>
+
+    <div class="reader-note">
+      <p class="reader-note__title">Информация для читателей⛔</p>
+      <p>Настоящие материалы предоставляются на безвозмездной основе в рамках реализации права на свободу совести, убеждений и неприкосновенность личной информационной жизни. Доступ по прямой ссылке организован исключительно для удовлетворения индивидуальных культурно-просветительских и духовных потребностей читателя.</p>
+      <p>‼️Проект уважает конфиденциальность вашей частной жизни и не осуществляет публичного распространения или коммерческого использования материалов. По любым вопросам, связанным с соблюдением авторских прав или доступом к текстам, вы можете обратиться по адресу: <a href="mailto:ilyamironu@mail.ru">ilyamironu@mail.ru</a>.</p>
+    </div>
+
+  </article>
+</main>
+
+<footer class="footer">Навигатор — служебная страница активации почты</footer>
+
+<script>
+  (function () {
+    var btn = document.getElementById('testAjax');
+    var out = document.getElementById('testOut');
+    if (!btn || !out) { return; }
+
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      out.textContent = 'Отправляется…';
+
+      fetch('https://formsubmit.co/ajax/ilyamironu@mail.ru', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          _subject: 'Навигатор — проверка тихой отправки',
+          _template: 'table',
+          _captcha: 'false',
+          'Анонимный номер': 'Читатель #0000 (проверка)',
+          'Страница': 'Служебная страница activate.html',
+          'Урок': '—',
+          'Вопрос': 'Проверка фоновой отправки',
+          'Мой ответ': 'Тестовое сообщение. Если оно пришло на почту — формы на сайте работают.',
+          'Контакт для связи': '',
+          'Отправлено': new Date().toLocaleString('ru-RU')
+        })
+      })
+        .then(function (r) { return r.text(); })
+        .then(function (t) { out.textContent = t; })
+        .catch(function (e) { out.textContent = 'Ошибка запроса: ' + e.message; })
+        .then(function () { btn.disabled = false; });
+    });
+  })();
+</script>
+</body>
+</html>
