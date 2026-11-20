@@ -134,6 +134,63 @@
       .replace(/"/g, '&quot;');
   }
 
+  /* ------------------------------------------- общая отправка на сервис */
+
+  function deliver(url, body, done) {
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(body)
+    })
+      .then(function (res) {
+        return res.json()
+          .catch(function () { return {}; })
+          .then(function (json) { return { httpOk: res.ok, json: json }; });
+      })
+      .then(function (r) {
+        var ok;
+        var msg = (r.json && (r.json.message || r.json.error))
+          ? String(r.json.message || r.json.error)
+          : '';
+        if (r.json && typeof r.json.success !== 'undefined') {
+          ok = (r.json.success === true || r.json.success === 'true');
+        } else {
+          ok = r.httpOk;
+        }
+        if (ok) { done(true, 'ok'); }
+        else { done(false, /activat|confirm/i.test(msg) ? 'activate' : 'other'); }
+      })
+      .catch(function () { done(false, 'other'); });
+  }
+
+  function endpoint(subject) {
+    if (CFG.PROVIDER === 'web3forms') {
+      return { url: 'https://api.web3forms.com/submit',
+               base: { access_key: CFG.ACCESS_KEY, subject: subject, from_name: 'Навигатор' } };
+    }
+    return { url: 'https://formsubmit.co/ajax/' + CFG.EMAIL,
+             base: { _subject: subject, _template: 'table', _captcha: 'false' } };
+  }
+
+  function mailtoLink(payload, subject) {
+    var lines = [];
+    for (var k in payload) {
+      if (payload.hasOwnProperty(k) && payload[k]) { lines.push(k + ': ' + payload[k]); }
+    }
+    return 'mailto:' + CFG.EMAIL +
+      '?subject=' + encodeURIComponent(subject) +
+      '&body=' + encodeURIComponent(lines.join('\n'));
+  }
+
+  function activationHint(statusEl, mailHref) {
+    if (!statusEl) { return; }
+    statusEl.className = 'status err';
+    statusEl.innerHTML = 'Почта ещё не подтверждена в сервисе FormSubmit. ' +
+      'Откройте служебную страницу <a class="link" href="activate.html">activate.html</a>, ' +
+      'нажмите на ней кнопку и подтвердите письмо «Activate Form». ' +
+      'Либо <a class="link" href="' + mailHref + '">отправьте письмо вручную</a>.';
+  }
+
   /* -------------------------------------------------- отправка ответа */
 
   function buildPayload(block) {
@@ -169,17 +226,12 @@
 
     var subject = (CFG.SUBJECT_PREFIX || 'Навигатор — ответ читателя') +
                   (payload['Вопрос'] ? ' — ' + payload['Вопрос'] : '');
-    var url, body;
-
-    if (CFG.PROVIDER === 'web3forms') {
-      url = 'https://api.web3forms.com/submit';
-      body = { access_key: CFG.ACCESS_KEY, subject: subject, from_name: 'Навигатор' };
-    } else {
-      url = 'https://formsubmit.co/ajax/' + CFG.EMAIL;
-      body = { _subject: subject, _template: 'table', _captcha: 'false' };
-      if (payload['Контакт для связи'] && payload['Контакт для связи'].indexOf('@') > -1) {
-        body.email = payload['Контакт для связи'];
-      }
+    var ep = endpoint(subject);
+    var url = ep.url;
+    var body = ep.base;
+    if (CFG.PROVIDER !== 'web3forms' &&
+        payload['Контакт для связи'] && payload['Контакт для связи'].indexOf('@') > -1) {
+      body.email = payload['Контакт для связи'];
     }
     for (var k in payload) { if (payload.hasOwnProperty(k)) { body[k] = payload[k]; } }
 
@@ -201,53 +253,100 @@
 
     var failure = function (reason) {
       if (submitBtn) { submitBtn.disabled = false; }
-      var mail = 'mailto:' + CFG.EMAIL +
-        '?subject=' + encodeURIComponent(subject) +
-        '&body=' + encodeURIComponent(
-          payload['Анонимный номер'] + '\n' + payload['Страница'] + '\n' +
-          payload['Урок'] + '\n' + payload['Вопрос'] + '\n\n' + payload['Мой ответ'] +
-          (payload['Контакт для связи'] ? '\n\nКонтакт: ' + payload['Контакт для связи'] : ''));
-      var mailHref = mail.replace(/"/g, '%22');
+      var mailHref = mailtoLink(payload, subject).replace(/"/g, '%22');
       if (!status) { return; }
-      status.className = 'status err';
       if (reason === 'activate') {
-        status.innerHTML = 'Почта ещё не подтверждена в сервисе FormSubmit. ' +
-          'Откройте служебную страницу <a class="link" href="activate.html">activate.html</a>, ' +
-          'нажмите на ней кнопку и подтвердите письмо «Activate Form». ' +
-          'Либо <a class="link" href="' + mailHref + '">отправьте письмо вручную</a>.';
+        activationHint(status, mailHref);
       } else {
+        status.className = 'status err';
         status.innerHTML = 'Сервис отправки недоступен. ' +
           '<a class="link" href="' + mailHref + '">Отправить письмо вручную</a>';
       }
     };
 
-    fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify(body)
-    })
-      .then(function (res) {
-        return res.json()
-          .catch(function () { return {}; })
-          .then(function (json) { return { httpOk: res.ok, json: json }; });
-      })
-      .then(function (r) {
-        var ok;
-        var msg = (r.json && (r.json.message || r.json.error))
-          ? String(r.json.message || r.json.error)
-          : '';
-        if (r.json && typeof r.json.success !== 'undefined') {
-          ok = (r.json.success === true || r.json.success === 'true');
-        } else {
-          ok = r.httpOk;
-        }
-        if (ok) {
-          success();
-        } else {
-          failure(/activat|confirm/i.test(msg) ? 'activate' : 'other');
-        }
-      })
-      .catch(function () { failure('other'); });
+    deliver(url, body, function (ok, reason) {
+      if (ok) { success(); } else { failure(reason); }
+    });
+  }
+
+  /* --- открытая форма связи на главной странице (id="contact") --- */
+
+  function sendContact(form) {
+    var status = form.querySelector('.status');
+    var submitBtn = form.querySelector('button[type="submit"]');
+    var ta = form.querySelector('textarea');
+    var contact = form.querySelector('input[type="text"]');
+    var text = ta ? ta.value.trim() : '';
+
+    if (!text) {
+      setStatus(status, 'Пожалуйста, напишите сообщение или вопрос.', 'err');
+      if (ta) { ta.focus(); }
+      return;
+    }
+
+    var context = 'Обращение с главной страницы / визитки (#contact)';
+    var payload = {
+      'Анонимный номер': getReaderId(),
+      'Тема': context,
+      'Страница': document.title,
+      'Сообщение или вопрос': text,
+      'Контакт для связи': contact ? contact.value.trim() : '',
+      'Отправлено': new Date().toLocaleString('ru-RU')
+    };
+    var subject = (CFG.SUBJECT_PREFIX || 'Навигатор — ответ читателя') + ' — ' + context;
+
+    var ep = endpoint(subject);
+    var body = ep.base;
+    if (CFG.PROVIDER !== 'web3forms' &&
+        payload['Контакт для связи'] && payload['Контакт для связи'].indexOf('@') > -1) {
+      body.email = payload['Контакт для связи'];
+    }
+    for (var k in payload) { if (payload.hasOwnProperty(k)) { body[k] = payload[k]; } }
+
+    deliver(ep.url, body, function (ok, reason) {
+      if (submitBtn) { submitBtn.disabled = false; }
+      if (ok) {
+        setStatus(status, 'Спасибо! Ваше сообщение отправлено (' + getReaderId() + '). Ответ придёт, если вы оставили контакт.', 'ok');
+        if (ta) { ta.value = ''; }
+        if (contact) { contact.value = ''; }
+        return;
+      }
+      var mailHref = mailtoLink(payload, subject).replace(/"/g, '%22');
+      if (reason === 'activate') { activationHint(status, mailHref); }
+      else if (status) {
+        status.className = 'status err';
+        status.innerHTML = 'Сервис отправки недоступен. ' +
+          '<a class="link" href="' + mailHref + '">Отправить письмо вручную</a>';
+      }
+    });
+
+    if (submitBtn) { submitBtn.disabled = true; }
+    setStatus(status, 'Отправляется…');
+  }
+
+  function initContact() {
+    var forms = document.querySelectorAll('form.js-contact');
+    for (var i = 0; i < forms.length; i++) {
+      (function (form) {
+        var reader = form.querySelector('[data-reader]');
+        if (reader) { reader.textContent = getReaderId(); }
+        form.addEventListener('submit', function (ev) {
+          ev.preventDefault();
+          sendContact(form);
+        });
+      })(forms[i]);
+    }
+  }
+
+  /* заход по ссылке с QR-кода (#contact): доводим до формы после загрузки картинок */
+  function initHashScroll() {
+    if (location.hash !== '#contact') { return; }
+    var jump = function () {
+      var el = document.getElementById('contact');
+      if (el && el.scrollIntoView) { el.scrollIntoView({ block: 'start' }); }
+    };
+    if (document.readyState === 'complete') { jump(); }
+    else { window.addEventListener('load', jump); }
   }
 
   function initAnswerBlock(block) {
@@ -347,7 +446,9 @@
     initNav();
     initVerses();
     initAnswers();
+    initContact();
     initImages();
+    initHashScroll();
   }
 
   if (document.readyState === 'loading') {
