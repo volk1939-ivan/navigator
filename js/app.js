@@ -199,7 +199,7 @@
       }
     };
 
-    var failure = function () {
+    var failure = function (reason) {
       if (submitBtn) { submitBtn.disabled = false; }
       var mail = 'mailto:' + CFG.EMAIL +
         '?subject=' + encodeURIComponent(subject) +
@@ -207,10 +207,17 @@
           payload['Анонимный номер'] + '\n' + payload['Страница'] + '\n' +
           payload['Урок'] + '\n' + payload['Вопрос'] + '\n\n' + payload['Мой ответ'] +
           (payload['Контакт для связи'] ? '\n\nКонтакт: ' + payload['Контакт для связи'] : ''));
-      if (status) {
-        status.className = 'status err';
+      var mailHref = mail.replace(/"/g, '%22');
+      if (!status) { return; }
+      status.className = 'status err';
+      if (reason === 'activate') {
+        status.innerHTML = 'Почта ещё не подтверждена в сервисе FormSubmit. ' +
+          'Откройте служебную страницу <a class="link" href="activate.html">activate.html</a>, ' +
+          'нажмите на ней кнопку и подтвердите письмо «Activate Form». ' +
+          'Либо <a class="link" href="' + mailHref + '">отправьте письмо вручную</a>.';
+      } else {
         status.innerHTML = 'Сервис отправки недоступен. ' +
-          '<a class="link" href="' + mail.replace(/"/g, '%22') + '">Отправить письмо вручную</a>';
+          '<a class="link" href="' + mailHref + '">Отправить письмо вручную</a>';
       }
     };
 
@@ -226,14 +233,21 @@
       })
       .then(function (r) {
         var ok;
+        var msg = (r.json && (r.json.message || r.json.error))
+          ? String(r.json.message || r.json.error)
+          : '';
         if (r.json && typeof r.json.success !== 'undefined') {
           ok = (r.json.success === true || r.json.success === 'true');
         } else {
           ok = r.httpOk;
         }
-        if (ok) { success(); } else { failure(); }
+        if (ok) {
+          success();
+        } else {
+          failure(/activat|confirm/i.test(msg) ? 'activate' : 'other');
+        }
       })
-      .catch(function () { failure(); });
+      .catch(function () { failure('other'); });
   }
 
   function initAnswerBlock(block) {
